@@ -17,6 +17,7 @@ import subprocess
 import webbrowser
 from enum import Enum
 from typing import Dict
+import uuid
 
 # --------------------------
 # Constants and Configuration
@@ -142,6 +143,51 @@ def set_page_styles():
     .status-online {
         background-color: var(--success);
     }
+    
+    /* New styles for enhanced UI */
+    .feature-card {
+        background: white;
+        border-radius: 1rem;
+        padding: 1.5rem;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        margin-bottom: 1.5rem;
+        transition: transform 0.3s ease;
+    }
+    
+    .feature-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    }
+    
+    .webpage-card {
+        border-left: 4px solid var(--primary);
+        padding: 1rem;
+        margin-bottom: 0.5rem;
+        background: white;
+        border-radius: 0.5rem;
+    }
+    
+    .tab-content {
+        padding: 1rem 0;
+    }
+    
+    .user-profile {
+        text-align: center;
+        padding: 1.5rem;
+    }
+    
+    /* Dark mode toggle */
+    .dark-mode .main {
+        background: #121212;
+        color: #ffffff;
+    }
+    
+    /* Responsive design */
+    @media (max-width: 768px) {
+        .login-box {
+            padding: 1.5rem;
+        }
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -159,6 +205,8 @@ def setup_auth():
         st.session_state.user_email = None
     if 'user_role' not in st.session_state:
         st.session_state.user_role = None
+    if 'dark_mode' not in st.session_state:
+        st.session_state.dark_mode = False
 
     if not os.path.exists('config.yaml'):
         default_config = {
@@ -168,21 +216,32 @@ def setup_auth():
                         'email': 'admin@quantumalloc.com',
                         'name': 'Admin',
                         'password': hashlib.sha256('admin123'.encode()).hexdigest(),
-                        'role': 'admin'
+                        'role': 'admin',
+                        'created_at': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     },
                     'analyst': {
                         'email': 'analyst@quantumalloc.com',
                         'name': 'Analyst',
                         'password': hashlib.sha256('analyst123'.encode()).hexdigest(),
-                        'role': 'analyst'
+                        'role': 'analyst',
+                        'created_at': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     },
                     'imran': {
                         'email': 'thoubicimran@gmail.com',
                         'name': 'Imran',
                         'password': hashlib.sha256('imran005'.encode()).hexdigest(),
-                        'role': 'superuser'
+                        'role': 'superuser',
+                        'created_at': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     }
                 }
+            },
+            'cookie': {
+                'expiry_days': 30,
+                'key': 'quantum_alloc_auth',
+                'name': 'quantum_alloc_auth'
+            },
+            'preauthorized': {
+                'emails': ['admin@quantumalloc.com', 'analyst@quantumalloc.com', 'thoubicimran@gmail.com']
             }
         }
         with open('config.yaml', 'w') as file:
@@ -199,25 +258,57 @@ def setup_auth():
                 <p class="login-subtitle">Optimized Quantum Task Distribution System</p>
         """, unsafe_allow_html=True)
         
-        with st.form("login_form"):
-            input_username = st.text_input("Username", key="input_username")
-            input_password = st.text_input("Password", type="password", key="input_password")
-            submitted = st.form_submit_button("Login", type="primary")
-            
-            if submitted:
-                if input_username in config['credentials']['usernames']:
-                    stored_pw = config['credentials']['usernames'][input_username]['password']
-                    if stored_pw == hashlib.sha256(input_password.encode()).hexdigest():
-                        st.session_state.authenticated = True
-                        st.session_state.current_user = input_username
-                        st.session_state.user_email = config['credentials']['usernames'][input_username]['email']
-                        st.session_state.name = config['credentials']['usernames'][input_username]['name']
-                        st.session_state.user_role = config['credentials']['usernames'][input_username].get('role', 'user')
-                        st.rerun()
+        # Tab system for login/signup
+        tab1, tab2 = st.tabs(["Login", "Sign Up"])
+        
+        with tab1:
+            with st.form("login_form"):
+                input_username = st.text_input("Username", key="input_username")
+                input_password = st.text_input("Password", type="password", key="input_password")
+                submitted = st.form_submit_button("Login", type="primary")
+                
+                if submitted:
+                    if input_username in config['credentials']['usernames']:
+                        stored_pw = config['credentials']['usernames'][input_username]['password']
+                        if stored_pw == hashlib.sha256(input_password.encode()).hexdigest():
+                            st.session_state.authenticated = True
+                            st.session_state.current_user = input_username
+                            st.session_state.user_email = config['credentials']['usernames'][input_username]['email']
+                            st.session_state.name = config['credentials']['usernames'][input_username]['name']
+                            st.session_state.user_role = config['credentials']['usernames'][input_username].get('role', 'user')
+                            st.rerun()
+                        else:
+                            st.error("Invalid password")
                     else:
-                        st.error("Invalid password")
-                else:
-                    st.error("Username not found")
+                        st.error("Username not found")
+        
+        with tab2:
+            with st.form("signup_form"):
+                new_username = st.text_input("Choose a username")
+                new_email = st.text_input("Email address")
+                new_name = st.text_input("Full name")
+                new_password = st.text_input("Password", type="password")
+                confirm_password = st.text_input("Confirm Password", type="password")
+                signup_submitted = st.form_submit_button("Create Account")
+                
+                if signup_submitted:
+                    if new_password != confirm_password:
+                        st.error("Passwords do not match")
+                    elif new_username in config['credentials']['usernames']:
+                        st.error("Username already exists")
+                    else:
+                        # Add new user to config
+                        config['credentials']['usernames'][new_username] = {
+                            'email': new_email,
+                            'name': new_name,
+                            'password': hashlib.sha256(new_password.encode()).hexdigest(),
+                            'role': 'user',
+                            'created_at': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        }
+                        # Save updated config
+                        with open('config.yaml', 'w') as file:
+                            yaml.dump(config, file, default_flow_style=False)
+                        st.success("Account created successfully! Please login.")
         
         st.markdown("""
             </div>
@@ -229,8 +320,9 @@ def setup_auth():
         st.stop()
     
     with st.sidebar:
+        # User profile with dark mode toggle
         st.markdown(f"""
-        <div class="gradient-card" style="text-align: center;">
+        <div class="user-profile">
             <div style="width: 80px; height: 80px; background: linear-gradient(135deg, var(--primary), var(--secondary)); 
                 border-radius: 50%; margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; color: white; font-size: 2rem;">
                 {st.session_state.name[0].upper()}
@@ -243,6 +335,9 @@ def setup_auth():
             </div>
         </div>
         """, unsafe_allow_html=True)
+        
+        # Dark mode toggle
+        st.session_state.dark_mode = st.toggle("Dark Mode", st.session_state.dark_mode)
         
         if st.button("🚪 Logout", type="primary", key="logout_button", use_container_width=True):
             st.session_state.authenticated = False
@@ -263,7 +358,8 @@ def get_system_config():
         'capacities': [50, 50, 50],
         'costs': [1.2, 2.5, 3.8],
         'latencies': [0.1, 0.2, 0.3],
-        'reliability': [0.99, 0.95, 0.90]
+        'reliability': [0.99, 0.95, 0.90],
+        'status': ['Online', 'Online', 'Maintenance']
     }
 
 # --------------------------
@@ -300,14 +396,14 @@ def generate_task(task_index: int) -> Dict:
         "deadline": round(random.uniform(1.0, 5.0), 2)
     }
     
-    # Add app launch details for some tasks
-    if random.random() < 0.3:  # 30% chance to be an app launch task
-        app_category = random.choice(list(APP_DATABASE.keys()))
-        app_name = random.choice(list(APP_DATABASE[app_category].keys()))
+    # Add web launch details for some tasks
+    if random.random() < 0.3:  # 30% chance to be a web launch task
+        web_category = random.choice(list(WEB_DATABASE.keys()))
+        web_name = random.choice(list(WEB_DATABASE[web_category].keys()))
         task.update({
-            "type": "app_launch",
-            "app_name": app_name,
-            "app_path": APP_DATABASE[app_category][app_name]
+            "type": "web_launch",
+            "web_name": web_name,
+            "web_url": WEB_DATABASE[web_category][web_name]["url"]
         })
     
     return task
@@ -333,13 +429,13 @@ def measure_time(func, *args):
     end = time.time()
     return result, round(end - start, 4)
 
-def execute_app_launch(task: Dict) -> bool:
-    """Execute the application launch task"""
+def execute_web_launch(task: Dict) -> bool:
+    """Execute the web page launch task"""
     try:
-        subprocess.Popen(task["app_path"], shell=True)
+        webbrowser.open_new_tab(task["web_url"])
         return True
     except Exception as e:
-        st.error(f"Failed to launch {task['app_name']}: {str(e)}")
+        st.error(f"Failed to open {task['web_name']}: {str(e)}")
         return False
 
 def quantum_superposition(system_config, task_config):
@@ -368,8 +464,8 @@ def quantum_superposition(system_config, task_config):
             'expected_latency': round(device_latencies[device_index], 3),
             'reliability': device_reliability[device_index],
             'type': task['type'],
-            **({'app_name': task['app_name'], 'app_path': task['app_path']} 
-               if task.get('type') == 'app_launch' else {})
+            **({'web_name': task['web_name'], 'web_url': task['web_url']} 
+               if task.get('type') == 'web_launch' else {})
         }
     return allocation
 
@@ -427,11 +523,12 @@ def quantum_genetic_algorithm(system_config, task_config):
             'expected_latency': round(device_latencies[device_index], 3),
             'reliability': device_reliability[device_index],
             'type': task['type'],
-            **({'app_name': task['app_name'], 'app_path': task['app_path']} 
-               if task.get('type') == 'app_launch' else {})
+            **({'web_name': task['web_name'], 'web_url': task['web_url']} 
+               if task.get('type') == 'web_launch' else {})
         }
     
     return allocation
+
 def quantum_annealing(system_config, task_config):
     devices = system_config['devices']
     device_capacities = system_config['capacities']
@@ -488,8 +585,8 @@ def quantum_annealing(system_config, task_config):
             'expected_latency': round(device_latencies[device_index], 3),
             'reliability': device_reliability[device_index],
             'type': task['type'],
-            **({'app_name': task['app_name'], 'app_path': task['app_path']} 
-               if task.get('type') == 'app_launch' else {})
+            **({'web_name': task['web_name'], 'web_url': task['web_url']} 
+               if task.get('type') == 'web_launch' else {})
         }
     
     return allocation
@@ -557,170 +654,304 @@ def hybrid_quantum_optimization(system_config, task_config):
             'expected_latency': round(device_latencies[device_index], 3),
             'reliability': device_reliability[device_index],
             'type': task['type'],
-            **({'app_name': task['app_name'], 'app_path': task['app_path']} 
-               if task.get('type') == 'app_launch' else {})
+            **({'web_name': task['web_name'], 'web_url': task['web_url']} 
+               if task.get('type') == 'web_launch' else {})
         }
     
     return allocation
 
 # --------------------------
-# Application Database
+# Web Page Database
 # --------------------------
-APP_DATABASE = {
-    "Microsoft Office": {
-        "Word": r"C:\Program Files\Microsoft Office\root\Office16\WINWORD.EXE",
-        "Excel": r"C:\Program Files\Microsoft Office\root\Office16\EXCEL.EXE",
-        "PowerPoint": r"C:\Program Files\Microsoft Office\root\Office16\POWERPNT.EXE",
-        "Outlook": r"C:\Program Files\Microsoft Office\root\Office16\OUTLOOK.EXE"
+WEB_DATABASE = {
+    "Social Media": {
+        "Facebook": {"url": "https://www.facebook.com", "icon": "📘"},
+        "Twitter": {"url": "https://twitter.com", "icon": "🐦"},
+        "Instagram": {"url": "https://www.instagram.com", "icon": "📷"},
+        "LinkedIn": {"url": "https://www.linkedin.com", "icon": "💼"},
+        "Reddit": {"url": "https://www.reddit.com", "icon": "🔴"}
     },
-    "Browsers": {
-        "Edge": r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-        "Chrome": r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-        "Firefox": r"C:\Program Files\Mozilla Firefox\firefox.exe"
+    "Productivity": {
+        "Gmail": {"url": "https://mail.google.com", "icon": "✉️"},
+        "Google Drive": {"url": "https://drive.google.com", "icon": "🗄️"},
+        "Google Docs": {"url": "https://docs.google.com", "icon": "📝"},
+        "Google Sheets": {"url": "https://sheets.google.com", "icon": "📊"},
+        "Google Slides": {"url": "https://slides.google.com", "icon": "📑"}
     },
-    "Utilities": {
-        "Notepad": r"C:\Windows\System32\notepad.exe",
-        "Calculator": r"C:\Windows\System32\calc.exe",
-        "Paint": r"C:\Windows\System32\mspaint.exe",
-        "Command Prompt": r"C:\Windows\System32\cmd.exe",
-        "File Explorer": "explorer.exe"
+    "Entertainment": {
+        "YouTube": {"url": "https://www.youtube.com", "icon": "▶️"},
+        "Netflix": {"url": "https://www.netflix.com", "icon": "🎬"},
+        "Spotify": {"url": "https://www.spotify.com", "icon": "🎵"},
+        "Twitch": {"url": "https://www.twitch.tv", "icon": "🎮"},
+        "Disney+": {"url": "https://www.disneyplus.com", "icon": "🏰"}
+    },
+    "News": {
+        "BBC": {"url": "https://www.bbc.com", "icon": "🇬🇧"},
+        "CNN": {"url": "https://www.cnn.com", "icon": "🇺🇸"},
+        "Al Jazeera": {"url": "https://www.aljazeera.com", "icon": "🌍"},
+        "Reuters": {"url": "https://www.reuters.com", "icon": "📰"},
+        "The Guardian": {"url": "https://www.theguardian.com", "icon": "🛡️"}
     }
 }
 
+CUSTOM_PAGES = {
+    "My Portfolio": {"url": "https://example.com/portfolio", "icon": "🌟"},
+    "Project Dashboard": {"url": "https://example.com/dashboard", "icon": "📈"},
+    "Company Site": {"url": "https://example.com/company", "icon": "🏢"},
+    "Internal Wiki": {"url": "https://example.com/wiki", "icon": "📚"},
+    "Team Chat": {"url": "https://example.com/chat", "icon": "💬"}
+}
+
 # --------------------------
-# App Launcher Functions
+# Web Launcher Functions
 # --------------------------
-def app_launcher_page():
-    MAX_CONCURRENT_TASKS = 8  # Maximum allowed running apps
+def web_launcher_page():
+    MAX_CONCURRENT_TABS = 10
     
     # Initialize session state
-    if 'running_tasks' not in st.session_state:
-        st.session_state.running_tasks = []
+    if 'opened_pages' not in st.session_state:
+        st.session_state.opened_pages = []
+    if 'favorites' not in st.session_state:
+        st.session_state.favorites = []
+    if 'history' not in st.session_state:
+        st.session_state.history = []
+    if 'custom_pages' not in st.session_state:
+        st.session_state.custom_pages = CUSTOM_PAGES.copy()
     
-    def launch_application(app_name: str, app_path: str) -> bool:
-        """Launch an application with task limit enforcement"""
-        if len(st.session_state.running_tasks) >= MAX_CONCURRENT_TASKS:
-            st.warning(f"Cannot launch {app_name}. Maximum {MAX_CONCURRENT_TASKS} concurrent apps allowed.")
+    def launch_web_page(page_name: str, page_data: dict, from_favorites=False) -> bool:
+        """Launch a web page with tab limit enforcement"""
+        if len(st.session_state.opened_pages) >= MAX_CONCURRENT_TABS:
+            st.warning(f"Cannot open {page_name}. Maximum {MAX_CONCURRENT_TABS} tabs allowed.")
             return False
         
         try:
-            if os.path.exists(app_path):
-                # Use start command for better Windows integration
-                subprocess.Popen(f'start "" "{app_path}"', shell=True)
-                st.session_state.running_tasks.append({
-                    "name": app_name,
-                    "path": app_path,
-                    "start_time": time.time(),
-                    "pid": None  # Would use psutil for proper PID tracking
-                })
-                st.success(f"Launched {app_name} successfully!")
-                return True
-            else:
-                st.error(f"Application not found at: {app_path}")
-                return False
+            webbrowser.open_new_tab(page_data["url"])
+            st.session_state.opened_pages.append({
+                "name": page_name,
+                "url": page_data["url"],
+                "icon": page_data["icon"],
+                "open_time": time.time()
+            })
+            
+            # Add to history
+            st.session_state.history.append({
+                "name": page_name,
+                "url": page_data["url"],
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            })
+            
+            if not from_favorites:
+                st.success(f"Opened {page_name} successfully!")
+            return True
         except Exception as e:
-            st.error(f"Failed to launch {app_name}: {str(e)}")
+            st.error(f"Failed to open {page_name}: {str(e)}")
             return False
     
-    def launch_all_applications():
-        """Launch all applications respecting task limits"""
+    def launch_all_pages():
+        """Launch all web pages respecting tab limits"""
         successful_launches = 0
-        total_apps = sum(len(apps) for apps in APP_DATABASE.values())
+        total_pages = sum(len(pages) for pages in WEB_DATABASE.values()) + len(st.session_state.custom_pages)
         
         progress_bar = st.progress(0)
         status_text = st.empty()
         
-        for category, apps in APP_DATABASE.items():
-            for app_name, app_path in apps.items():
-                if len(st.session_state.running_tasks) >= MAX_CONCURRENT_TASKS:
-                    status_text.warning(f"Stopped: Reached maximum of {MAX_CONCURRENT_TASKS} concurrent apps")
+        # Launch standard pages
+        for category, pages in WEB_DATABASE.items():
+            for page_name, page_data in pages.items():
+                if len(st.session_state.opened_pages) >= MAX_CONCURRENT_TABS:
+                    status_text.warning(f"Stopped: Reached maximum of {MAX_CONCURRENT_TABS} tabs")
                     break
                 
-                status_text.info(f"Launching {app_name}...")
-                if launch_application(app_name, app_path):
+                status_text.info(f"Opening {page_name}...")
+                if launch_web_page(page_name, page_data):
                     successful_launches += 1
                 
-                progress_bar.progress(successful_launches / total_apps)
-                time.sleep(0.5)  # Small delay between launches
+                progress_bar.progress(successful_launches / total_pages)
+                time.sleep(0.3)
         
-        status_text.success(f"Launched {successful_launches} of {total_apps} applications")
+        # Launch custom pages
+        for page_name, page_data in st.session_state.custom_pages.items():
+            if len(st.session_state.opened_pages) >= MAX_CONCURRENT_TABS:
+                status_text.warning(f"Stopped: Reached maximum of {MAX_CONCURRENT_TABS} tabs")
+                break
+            
+            status_text.info(f"Opening {page_name}...")
+            if launch_web_page(page_name, page_data):
+                successful_launches += 1
+            
+            progress_bar.progress(successful_launches / total_pages)
+            time.sleep(0.3)
+        
+        status_text.success(f"Opened {successful_launches} of {total_pages} pages")
         progress_bar.empty()
     
-    def close_all_applications():
-        """Close all running applications"""
-        if not st.session_state.running_tasks:
-            st.warning("No applications are currently running")
+    def close_all_pages():
+        """Close all opened web pages (simulated)"""
+        if not st.session_state.opened_pages:
+            st.warning("No web pages currently opened")
             return
         
         progress_bar = st.progress(0)
         status_text = st.empty()
-        total_tasks = len(st.session_state.running_tasks)
+        total_pages = len(st.session_state.opened_pages)
         
-        for i in range(total_tasks, 0, -1):  # Close in reverse order
-            task = st.session_state.running_tasks.pop()
-            try:
-                os.system(f'taskkill /f /im "{os.path.basename(task["path"])}"')
-                status_text.info(f"Closing {task['name']}...")
-                progress_bar.progress((total_tasks - i + 1) / total_tasks)
-                time.sleep(0.3)  # Small delay between closures
-            except Exception as e:
-                st.error(f"Error closing {task['name']}: {str(e)}")
+        for i in range(total_pages, 0, -1):
+            page = st.session_state.opened_pages.pop()
+            status_text.info(f"Closing {page['name']}...")
+            progress_bar.progress((total_pages - i + 1) / total_pages)
+            time.sleep(0.2)
         
-        status_text.success("All applications closed successfully!")
+        status_text.success("All web pages closed successfully!")
         progress_bar.empty()
         time.sleep(2)
         status_text.empty()
     
-    def close_application(index: int):
-        """Attempt to close a running application"""
+    def close_page(index: int):
+        """Simulate closing a web page"""
         try:
-            task = st.session_state.running_tasks.pop(index)
-            # This is a simplified approach - would use task['pid'] with psutil in production
-            os.system(f'taskkill /f /im "{os.path.basename(task["path"])}"')
-            st.success(f"Closed {task['name']}")
+            page = st.session_state.opened_pages.pop(index)
+            st.success(f"Closed {page['name']}")
         except Exception as e:
-            st.error(f"Error closing application: {str(e)}")
+            st.error(f"Error closing page: {str(e)}")
     
-    # App launcher page UI
-    st.title("📱 Application Launcher")
-    st.write(f"Maximum concurrent apps allowed: {MAX_CONCURRENT_TASKS}")
+    def toggle_favorite(page_name, page_url):
+        """Add or remove page from favorites"""
+        if any(fav['name'] == page_name for fav in st.session_state.favorites):
+            st.session_state.favorites = [fav for fav in st.session_state.favorites if fav['name'] != page_name]
+            st.success(f"Removed {page_name} from favorites")
+        else:
+            st.session_state.favorites.append({
+                "name": page_name,
+                "url": page_url,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            })
+            st.success(f"Added {page_name} to favorites")
+    
+    # Web launcher page UI
+    st.title("🌐 Web Page Launcher")
+    st.write(f"Maximum concurrent tabs allowed: {MAX_CONCURRENT_TABS}")
     
     # Control buttons
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("🚀 Launch All Apps", help="Launch all applications up to the task limit"):
-            launch_all_applications()
+        if st.button("🚀 Open All Pages", help="Open all web pages up to the tab limit"):
+            launch_all_pages()
             st.rerun()
     
     with col2:
-        if st.button("🛑 Close All Apps", help="Close all currently running applications"):
-            close_all_applications()
+        if st.button("🛑 Close All Pages", help="Close all currently opened pages"):
+            close_all_pages()
             st.rerun()
     
-    # Display running tasks
-    with st.expander("🚀 Currently Running Apps", expanded=True):
-        if not st.session_state.running_tasks:
-            st.info("No applications currently running")
+    # Display opened pages
+    with st.expander("🌐 Currently Opened Pages", expanded=True):
+        if not st.session_state.opened_pages:
+            st.info("No web pages currently opened")
         else:
-            for i, task in enumerate(st.session_state.running_tasks):
-                col1, col2 = st.columns([4, 1])
+            for i, page in enumerate(st.session_state.opened_pages):
+                col1, col2, col3 = st.columns([4, 1, 1])
                 with col1:
-                    st.write(f"**{task['name']}** (running for {int(time.time() - task['start_time'])}s)")
+                    st.write(f"{page['icon']} **{page['name']}** (open for {int(time.time() - page['open_time'])}s)")
                 with col2:
                     if st.button("Close", key=f"close_{i}"):
-                        close_application(i)
+                        close_page(i)
+                        st.rerun()
+                with col3:
+                    if st.button("⭐", key=f"fav_{i}"):
+                        toggle_favorite(page['name'], page['url'])
                         st.rerun()
     
-    # App selection interface
-    st.header("Launch New Applications")
-    for category, apps in APP_DATABASE.items():
-        with st.expander(f"📁 {category}"):
+    # Tab system for different sections
+    tab1, tab2, tab3, tab4 = st.tabs(["Standard Pages", "Custom Pages", "Favorites", "History"])
+
+    with tab1:
+        st.header("Standard Web Pages")
+        for category, pages in WEB_DATABASE.items():
+            with st.expander(f"📁 {category}"):
+                cols = st.columns(3)
+                for i, (page_name, page_data) in enumerate(pages.items()):
+                    with cols[i % 3]:
+                        if st.button(f"{page_data['icon']} {page_name}", key=f"launch_{page_name}"):
+                            launch_web_page(page_name, page_data)
+                            st.rerun()
+    
+    with tab2:
+        st.header("🔧 Custom Web Pages")
+        cols = st.columns(3)
+        for i, (page_name, page_data) in enumerate(st.session_state.custom_pages.items()):
+            with cols[i % 3]:
+                if st.button(f"{page_data['icon']} {page_name}", key=f"custom_{page_name}"):
+                    launch_web_page(page_name, page_data)
+                    st.rerun()
+        
+        # Add custom page form
+        with st.expander("➕ Add New Custom Page"):
+            with st.form("add_custom_page"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    page_name = st.text_input("Page Name")
+                    page_url = st.text_input("URL (include https://)")
+                with col2:
+                    page_icon = st.text_input("Icon (emoji)", value="🔗")
+                    st.markdown("Find emojis: [Emoji Cheat Sheet](https://www.webfx.com/tools/emoji-cheat-sheet/)")
+                
+                if st.form_submit_button("Add Page"):
+                    if page_name and page_url and page_icon:
+                        if page_name not in st.session_state.custom_pages:
+                            st.session_state.custom_pages[page_name] = {"url": page_url, "icon": page_icon}
+                            st.success(f"Added {page_name} to custom pages!")
+                        else:
+                            st.error("A page with this name already exists")
+                    else:
+                        st.error("Please fill all fields")
+    
+    with tab3:
+        st.header("⭐ Favorite Pages")
+        if not st.session_state.favorites:
+            st.info("No favorite pages yet")
+        else:
             cols = st.columns(3)
-            for i, (app_name, app_path) in enumerate(apps.items()):
+            for i, fav in enumerate(st.session_state.favorites):
                 with cols[i % 3]:
-                    if st.button(f"🚀 {app_name}", key=f"launch_{app_name}"):
-                        launch_application(app_name, app_path)
-                        st.rerun()
+                    with st.container():
+                        st.markdown(f"""
+                        <div class="webpage-card">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <h4>{fav['name']}</h4>
+                                <button onclick="window.open('{fav['url']}', '_blank')" style="background: none; border: none; cursor: pointer;">➡️</button>
+                            </div>
+                            <p style="color: #666; font-size: 0.8rem;">{fav['url']}</p>
+                            <div style="display: flex; justify-content: space-between;">
+                                <button onclick="toggleFavorite('{fav['name']}')" style="background: none; border: none; cursor: pointer;">⭐</button>
+                                <small style="color: #999;">Added: {fav['timestamp']}</small>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+    
+    with tab4:
+        st.header("🕒 Browsing History")
+        if not st.session_state.history:
+            st.info("No browsing history yet")
+        else:
+            # Group history by date
+            history_by_date = {}
+            for item in reversed(st.session_state.history):
+                date = item['timestamp'].split()[0]
+                if date not in history_by_date:
+                    history_by_date[date] = []
+                history_by_date[date].append(item)
+            
+            for date, items in history_by_date.items():
+                with st.expander(f"📅 {date}"):
+                    for item in items:
+                        col1, col2 = st.columns([4, 1])
+                        with col1:
+                            st.write(f"**{item['name']}**")
+                            st.caption(item['url'])
+                        with col2:
+                            if st.button("Open", key=f"hist_{item['name']}_{item['timestamp']}"):
+                                launch_web_page(item['name'], {"url": item['url'], "icon": "⏳"}, from_favorites=True)
+                                st.rerun()
 
 # --------------------------
 # Algorithm Comparison
@@ -798,6 +1029,7 @@ def run_all_algorithms(system_config, task_config):
         }
     
     return results
+
 def calculate_max_load(system_config, allocation):
     """Calculate the maximum load percentage across devices"""
     device_loads = {device: 0 for device in system_config['devices']}
@@ -847,22 +1079,23 @@ def calculate_efficiency(system_config, allocation):
     
     # Weighted average
     return round((cost_score * 0.3 + load_score * 0.2 + deadline_score * 0.3 + reliability_score * 0.2), 2)
+
 def show_comparison_results(results):
     st.markdown("""
     <style>
     .gradient-card {
-        color: #333333 !important;  /* Dark gray color */
-        font-weight: 600 !important;  /* Semi-bold */
+        color: #333333 !important;
+        font-weight: 600 !important;
     }
     .gradient-card .metric-label {
         font-size: 0.75rem;
         color: #666666;
-        font-weight: 600;  /* Semi-bold */
+        font-weight: 600;
     }
     .gradient-card .metric-value {
         font-size: 1.5rem;
-        font-weight: 700;  /* Bold */
-        color: #000000;  /* Pure black */
+        font-weight: 700;
+        color: #000000;
         margin-top: 0.25rem;
     }
     </style>
@@ -920,6 +1153,7 @@ def show_comparison_results(results):
                 </div>
             </div>
             """, unsafe_allow_html=True)
+
     st.subheader("📈 Comparative Analysis")
     tab1, tab2, tab3, tab4, tab5 = st.tabs(["Execution Time", "Cost Efficiency", "Reliability", "Load Balance", "Efficiency"])
     
@@ -972,6 +1206,7 @@ def show_comparison_results(results):
         ))
         fig.update_layout(title='Overall Efficiency Score (0-100)')
         st.plotly_chart(fig, use_container_width=True)
+
     st.subheader("📋 Detailed Metrics Comparison")
     
     # Prepare data for the table
@@ -1016,6 +1251,7 @@ def show_comparison_results(results):
         file_name="algorithm_comparison.csv",
         mime="text/csv"
     )
+
 # --------------------------
 # Task Allocation Page
 # --------------------------
@@ -1065,7 +1301,7 @@ def task_allocation_page(system_config, task_config):
                 "Task ID": task['task_id'],
                 "Size": task['size'],
                 "Priority": task['priority'],
-                "Type": f"{task['type']} ({task['app_name']})" if task.get('app_name') else task['type'],
+                "Type": f"{task['type']} ({task['web_name']})" if task.get('web_name') else task['type'],
                 "Deadline (s)": f"{task['deadline']:.2f}",
                 "Criticality": "High" if task['priority'] == 3 else "Medium" if task['priority'] == 2 else "Low"
             })
@@ -1131,7 +1367,7 @@ def task_allocation_page(system_config, task_config):
 
         st.subheader("📋 Detailed Allocation")
         allocation_data = []
-        for task_id, task_info in allocation.items():
+        for task_id, task_info in allocation.values():
             allocation_data.append({
                 "Task ID": task_id,
                 "Size": task_info['size'],
@@ -1154,7 +1390,6 @@ def task_allocation_page(system_config, task_config):
             mime="text/csv"
         )
 
-
 # --------------------------
 # Main Application
 # --------------------------
@@ -1172,7 +1407,8 @@ def main():
         "Capacity": system_config['capacities'],
         "Cost/Unit": system_config['costs'],
         "Latency (ms)": system_config['latencies'],
-        "Reliability": [f"{r:.0%}" for r in system_config['reliability']]
+        "Reliability": [f"{r:.0%}" for r in system_config['reliability']],
+        "Status": system_config['status']
     })
     st.sidebar.dataframe(sys_info, use_container_width=True, hide_index=True)
     
@@ -1184,7 +1420,7 @@ def main():
     st.sidebar.title("Navigation")
     page = st.sidebar.radio(
         "Go to",
-        ["Task Allocation", "Algorithm Comparison", "App Launcher"],
+        ["Task Allocation", "Algorithm Comparison", "Web Page Launcher"],
         label_visibility="collapsed"
     )
     
@@ -1192,8 +1428,8 @@ def main():
         task_allocation_page(system_config, task_config)
     elif page == "Algorithm Comparison":
         algorithm_comparison_page(system_config, task_config)
-    elif page == "App Launcher":
-        app_launcher_page()
+    elif page == "Web Page Launcher":
+        web_launcher_page()
     
     st.markdown("---")
     st.markdown("""
