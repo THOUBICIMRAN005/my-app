@@ -719,42 +719,47 @@ def web_launcher_page():
         st.session_state.custom_pages = CUSTOM_PAGES.copy()
     
     def launch_web_page(page_name: str, page_data: dict, from_favorites=False) -> bool:
-    """Launch a web page by creating a clickable link"""
-    if len(st.session_state.opened_pages) >= MAX_CONCURRENT_TABS:
-        st.warning(f"Cannot open {page_name}. Maximum {MAX_CONCURRENT_TABS} tabs allowed.")
-        return False
+        """Handle web page launching in Streamlit Cloud"""
+        if len(st.session_state.opened_pages) >= MAX_CONCURRENT_TABS:
+            st.warning(f"Cannot open {page_name}. Maximum {MAX_CONCURRENT_TABS} tabs allowed.")
+            return False
+        
+        try:
+            # Add to opened pages
+            st.session_state.opened_pages.append({
+                "name": page_name,
+                "url": page_data["url"],
+                "icon": page_data["icon"],
+                "open_time": time.time()
+            })
+            
+            # Add to history
+            st.session_state.history.append({
+                "name": page_name,
+                "url": page_data["url"],
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            })
+            
+            # Display clickable link
+            st.markdown(f"""
+            <div style="margin: 1rem 0; padding: 1rem; border: 1px solid #e0e0e0; border-radius: 0.5rem;">
+                <p style="margin-bottom: 0.5rem;">Click below to open:</p>
+                <a href="{page_data['url']}" target="_blank" style="display: inline-block; padding: 0.5rem 1rem; background-color: #6e48aa; color: white; text-decoration: none; border-radius: 0.5rem;">
+                    {page_data['icon']} {page_name}
+                </a>
+                <p style="margin-top: 0.5rem; font-size: 0.8rem; color: #666;">{page_data['url']}</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if not from_favorites:
+                st.success(f"Click the link above to open {page_name}")
+            return True
+        except Exception as e:
+            st.error(f"Failed to create link for {page_name}: {str(e)}")
+            return False
     
-    try:
-        # Store the page in session state
-        st.session_state.opened_pages.append({
-            "name": page_name,
-            "url": page_data["url"],
-            "icon": page_data["icon"],
-            "open_time": time.time()
-        })
-        
-        # Add to history
-        st.session_state.history.append({
-            "name": page_name,
-            "url": page_data["url"],
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        })
-        
-        # Create a clickable link
-        st.markdown(f"""
-        <a href="{page_data['url']}" target="_blank">
-            <button style="background-color: #6e48aa; color: white; padding: 0.5rem 1rem; border-radius: 0.5rem; border: none; cursor: pointer;">
-                {page_data['icon']} Open {page_name} in new tab
-            </button>
-        </a>
-        """, unsafe_allow_html=True)
-        
-        if not from_favorites:
-            st.success(f"Ready to open {page_name}!")
-        return True
-    except Exception as e:
-        st.error(f"Failed to create link for {page_name}: {str(e)}")
-        return False
+    # Rest of your web_launcher_page function remains the same...
+    # [Keep all the other existing code for favorites, history, etc.]
     def launch_all_pages():
         """Launch all web pages respecting tab limits"""
         successful_launches = 0
