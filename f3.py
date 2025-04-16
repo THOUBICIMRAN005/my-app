@@ -751,81 +751,10 @@ def web_launcher_page():
             </div>
             """, unsafe_allow_html=True)
             
-            if not from_favorites:
-                st.success(f"Click the link above to open {page_name}")
             return True
         except Exception as e:
             st.error(f"Failed to create link for {page_name}: {str(e)}")
             return False
-    
-    # Rest of your web_launcher_page function remains the same...
-    # [Keep all the other existing code for favorites, history, etc.]
-    def launch_all_pages():
-        """Launch all web pages respecting tab limits"""
-        successful_launches = 0
-        total_pages = sum(len(pages) for pages in WEB_DATABASE.values()) + len(st.session_state.custom_pages)
-        
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        
-        # Launch standard pages
-        for category, pages in WEB_DATABASE.items():
-            for page_name, page_data in pages.items():
-                if len(st.session_state.opened_pages) >= MAX_CONCURRENT_TABS:
-                    status_text.warning(f"Stopped: Reached maximum of {MAX_CONCURRENT_TABS} tabs")
-                    break
-                
-                status_text.info(f"Opening {page_name}...")
-                if launch_web_page(page_name, page_data):
-                    successful_launches += 1
-                
-                progress_bar.progress(successful_launches / total_pages)
-                time.sleep(0.3)
-        
-        # Launch custom pages
-        for page_name, page_data in st.session_state.custom_pages.items():
-            if len(st.session_state.opened_pages) >= MAX_CONCURRENT_TABS:
-                status_text.warning(f"Stopped: Reached maximum of {MAX_CONCURRENT_TABS} tabs")
-                break
-            
-            status_text.info(f"Opening {page_name}...")
-            if launch_web_page(page_name, page_data):
-                successful_launches += 1
-            
-            progress_bar.progress(successful_launches / total_pages)
-            time.sleep(0.3)
-        
-        status_text.success(f"Opened {successful_launches} of {total_pages} pages")
-        progress_bar.empty()
-    
-    def close_all_pages():
-        """Close all opened web pages (simulated)"""
-        if not st.session_state.opened_pages:
-            st.warning("No web pages currently opened")
-            return
-        
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        total_pages = len(st.session_state.opened_pages)
-        
-        for i in range(total_pages, 0, -1):
-            page = st.session_state.opened_pages.pop()
-            status_text.info(f"Closing {page['name']}...")
-            progress_bar.progress((total_pages - i + 1) / total_pages)
-            time.sleep(0.2)
-        
-        status_text.success("All web pages closed successfully!")
-        progress_bar.empty()
-        time.sleep(2)
-        status_text.empty()
-    
-    def close_page(index: int):
-        """Simulate closing a web page"""
-        try:
-            page = st.session_state.opened_pages.pop(index)
-            st.success(f"Closed {page['name']}")
-        except Exception as e:
-            st.error(f"Error closing page: {str(e)}")
     
     def toggle_favorite(page_name, page_url):
         """Add or remove page from favorites"""
@@ -857,39 +786,37 @@ def web_launcher_page():
             st.rerun()
     
     # Display opened pages
-    # In your web_launcher_page() function, replace the opened pages display with:
-with st.expander("🌐 Currently Opened Pages", expanded=True):
-    if not st.session_state.opened_pages:
-        st.info("No web pages currently opened")
-    else:
-        for i, page in enumerate(st.session_state.opened_pages):
-            col1, col2, col3 = st.columns([4, 1, 1])
-            with col1:
-                st.markdown(f"""
-                <div style="display: flex; align-items: center; gap: 0.5rem;">
-                    {page['icon']} <strong>{page['name']}</strong> (open for {int(time.time() - page['open_time'])}s)
-                </div>
-                """, unsafe_allow_html=True)
-                st.markdown(f"""
-                <a href="{page['url']}" target="_blank" style="font-size: 0.8rem; color: #6e48aa;">
-                    {page['url']}
-                </a>
-                """, unsafe_allow_html=True)
-            with col2:
-                if st.button("Open", key=f"open_{i}"):
+    with st.expander("🌐 Currently Opened Pages", expanded=True):
+        if not st.session_state.opened_pages:
+            st.info("No web pages currently opened")
+        else:
+            for i, page in enumerate(st.session_state.opened_pages):
+                col1, col2, col3 = st.columns([4, 1, 1])
+                with col1:
                     st.markdown(f"""
-                    <a href="{page['url']}" target="_blank"></a>
-                    <script>
-                        window.open("{page['url']}", "_blank");
-                    </script>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        {page['icon']} <strong>{page['name']}</strong> (open for {int(time.time() - page['open_time'])}s)
+                    </div>
+                    <a href="{page['url']}" target="_blank" style="font-size: 0.8rem; color: #6e48aa;">
+                        {page['url']}
+                    </a>
                     """, unsafe_allow_html=True)
-            with col3:
-                if st.button("⭐", key=f"fav_{i}"):
-                    toggle_favorite(page['name'], page['url'])
-                    st.rerun()
+                with col2:
+                    if st.button("Open", key=f"open_{i}"):
+                        st.markdown(f"""
+                        <a href="{page['url']}" target="_blank"></a>
+                        <script>
+                            window.open("{page['url']}", "_blank");
+                        </script>
+                        """, unsafe_allow_html=True)
+                with col3:
+                    if st.button("⭐", key=f"fav_{i}"):
+                        toggle_favorite(page['name'], page['url'])
+                        st.rerun()
+    
     # Tab system for different sections
     tab1, tab2, tab3, tab4 = st.tabs(["Standard Pages", "Custom Pages", "Favorites", "History"])
-
+    
     with tab1:
         st.header("Standard Web Pages")
         for category, pages in WEB_DATABASE.items():
@@ -932,29 +859,34 @@ with st.expander("🌐 Currently Opened Pages", expanded=True):
                         st.error("Please fill all fields")
     
     with tab3:
-    st.header("⭐ Favorite Pages")
-    if not st.session_state.favorites:
-        st.info("No favorite pages yet")
-    else:
-        for i, fav in enumerate(st.session_state.favorites):
-            with st.container():
-                st.markdown(f"""
-                <div class="webpage-card">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <h4>{fav['name']}</h4>
-                    </div>
-                    <a href="{fav['url']}" target="_blank" style="color: #666; font-size: 0.8rem;">
-                        {fav['url']}
-                    </a>
-                    <div style="display: flex; justify-content: space-between; margin-top: 0.5rem;">
-                        <button onclick="window.open('{fav['url']}', '_blank')" 
-                            style="background: #6e48aa; color: white; border: none; border-radius: 0.25rem; padding: 0.25rem 0.5rem; cursor: pointer;">
-                            Open
-                        </button>
-                        <small style="color: #999;">Added: {fav['timestamp']}</small>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+        st.header("⭐ Favorite Pages")
+        if not st.session_state.favorites:
+            st.info("No favorite pages yet")
+        else:
+            cols = st.columns(3)
+            for i, fav in enumerate(st.session_state.favorites):
+                with cols[i % 3]:
+                    with st.container():
+                        st.markdown(f"""
+                        <div style="border: 1px solid #e0e0e0; border-radius: 0.5rem; padding: 1rem; margin-bottom: 1rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <h4>{fav['name']}</h4>
+                                <a href="{fav['url']}" target="_blank" style="text-decoration: none;">
+                                    <button style="background: #6e48aa; color: white; border: none; border-radius: 0.25rem; padding: 0.25rem 0.5rem; cursor: pointer;">
+                                        Open
+                                    </button>
+                                </a>
+                            </div>
+                            <p style="color: #666; font-size: 0.8rem; margin-top: 0.5rem;">{fav['url']}</p>
+                            <div style="display: flex; justify-content: space-between; margin-top: 0.5rem;">
+                                <button onclick="window.open('{fav['url']}', '_blank')" style="background: none; border: none; cursor: pointer; color: #6e48aa;">
+                                    ⭐ Remove Favorite
+                                </button>
+                                <small style="color: #999;">Added: {fav['timestamp']}</small>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+    
     with tab4:
         st.header("🕒 Browsing History")
         if not st.session_state.history:
@@ -978,9 +910,7 @@ with st.expander("🌐 Currently Opened Pages", expanded=True):
                         with col2:
                             if st.button("Open", key=f"hist_{item['name']}_{item['timestamp']}"):
                                 launch_web_page(item['name'], {"url": item['url'], "icon": "⏳"}, from_favorites=True)
-                                st.rerun()
-
-# --------------------------
+                                st.rerun()# --------------------------
 # Algorithm Comparison
 # --------------------------
 def algorithm_comparison_page(system_config, task_config):
