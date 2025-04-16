@@ -719,7 +719,7 @@ def web_launcher_page():
         st.session_state.custom_pages = CUSTOM_PAGES.copy()
     
     def launch_web_page(page_name: str, page_data: dict, from_favorites=False) -> bool:
-        """Handle web page launching in Streamlit Cloud"""
+        """Handle web page launching"""
         if len(st.session_state.opened_pages) >= MAX_CONCURRENT_TABS:
             st.warning(f"Cannot open {page_name}. Maximum {MAX_CONCURRENT_TABS} tabs allowed.")
             return False
@@ -740,21 +740,55 @@ def web_launcher_page():
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             })
             
-            # Display clickable link
-            st.markdown(f"""
-            <div style="margin: 1rem 0; padding: 1rem; border: 1px solid #e0e0e0; border-radius: 0.5rem;">
-                <p style="margin-bottom: 0.5rem;">Click below to open:</p>
-                <a href="{page_data['url']}" target="_blank" style="display: inline-block; padding: 0.5rem 1rem; background-color: #6e48aa; color: white; text-decoration: none; border-radius: 0.5rem;">
-                    {page_data['icon']} {page_name}
-                </a>
-                <p style="margin-top: 0.5rem; font-size: 0.8rem; color: #666;">{page_data['url']}</p>
-            </div>
-            """, unsafe_allow_html=True)
-            
             return True
         except Exception as e:
             st.error(f"Failed to create link for {page_name}: {str(e)}")
             return False
+    
+    def launch_all_pages():
+        """Launch all web pages with JavaScript auto-open"""
+        successful_launches = 0
+        all_pages = []
+        
+        # Collect all standard pages
+        for category, pages in WEB_DATABASE.items():
+            for page_name, page_data in pages.items():
+                if len(st.session_state.opened_pages) >= MAX_CONCURRENT_TABS:
+                    break
+                if launch_web_page(page_name, page_data):
+                    all_pages.append(page_data["url"])
+                    successful_launches += 1
+        
+        # Collect all custom pages
+        for page_name, page_data in st.session_state.custom_pages.items():
+            if len(st.session_state.opened_pages) >= MAX_CONCURRENT_TABS:
+                break
+            if launch_web_page(page_name, page_data):
+                all_pages.append(page_data["url"])
+                successful_launches += 1
+        
+        # Generate JavaScript to open all pages
+        if all_pages:
+            js_code = ""
+            for url in all_pages:
+                js_code += f'window.open("{url}", "_blank");'
+            
+            st.markdown(f"""
+            <script>
+                {js_code}
+            </script>
+            """, unsafe_allow_html=True)
+        
+        st.success(f"Attempted to open {successful_launches} pages. Note: Some browsers may block popups.")
+    
+    def close_all_pages():
+        """Clear all opened pages"""
+        if not st.session_state.opened_pages:
+            st.warning("No web pages currently opened")
+            return
+        
+        st.session_state.opened_pages = []
+        st.success("All pages cleared. Note: This doesn't actually close browser tabs.")
     
     def toggle_favorite(page_name, page_url):
         """Add or remove page from favorites"""
@@ -776,12 +810,12 @@ def web_launcher_page():
     # Control buttons
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("🚀 Open All Pages", help="Open all web pages up to the tab limit"):
+        if st.button("🚀 Launch All Pages", help="Attempt to open all web pages in new tabs"):
             launch_all_pages()
             st.rerun()
     
     with col2:
-        if st.button("🛑 Close All Pages", help="Close all currently opened pages"):
+        if st.button("🛑 Close All Pages", help="Clear all opened pages from memory"):
             close_all_pages()
             st.rerun()
     
@@ -804,7 +838,6 @@ def web_launcher_page():
                 with col2:
                     if st.button("Open", key=f"open_{i}"):
                         st.markdown(f"""
-                        <a href="{page['url']}" target="_blank"></a>
                         <script>
                             window.open("{page['url']}", "_blank");
                         </script>
@@ -813,6 +846,9 @@ def web_launcher_page():
                     if st.button("⭐", key=f"fav_{i}"):
                         toggle_favorite(page['name'], page['url'])
                         st.rerun()
+
+    # Rest of your tab implementation remains the same...
+    # [Keep all the existing code for tabs, favorites, history, etc.]
     
     # Tab system for different sections
     tab1, tab2, tab3, tab4 = st.tabs(["Standard Pages", "Custom Pages", "Favorites", "History"])
