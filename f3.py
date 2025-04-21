@@ -94,85 +94,17 @@ def set_page_styles():
     transform: translateY(-1px);
 }
 
-.login-box::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, 
-        rgba(255,255,255,0) 0%, 
-        rgba(255,255,255,0.3) 50%, 
-        rgba(255,255,255,0) 100%);
-    transform: translateY(1px);
-}
-
-/* Animated Lighting Effects */
-@keyframes lightScan {
-    0% {
-        box-shadow: 
-            0 10px 30px rgba(0, 0, 0, 0.2),
-            0 0 0 1px rgba(255, 255, 255, 0.1) inset,
-            0 -5px 20px rgba(0, 0, 0, 0.1) inset,
-            5px 0 20px rgba(0, 0, 255, 0.05),
-            -5px 0 20px rgba(255, 0, 0, 0.05);
-    }
-    25% {
-        box-shadow: 
-            0 10px 30px rgba(0, 0, 0, 0.2),
-            0 0 0 1px rgba(255, 255, 255, 0.1) inset,
-            0 -5px 20px rgba(0, 0, 0, 0.1) inset,
-            5px 0 30px rgba(0, 0, 255, 0.1),
-            -5px 0 10px rgba(255, 0, 0, 0.03);
-    }
-    50% {
-        box-shadow: 
-            0 10px 30px rgba(0, 0, 0, 0.2),
-            0 0 0 1px rgba(255, 255, 255, 0.1) inset,
-            0 -5px 20px rgba(0, 0, 0, 0.1) inset,
-            5px 0 10px rgba(0, 0, 255, 0.03),
-            -5px 0 30px rgba(255, 0, 0, 0.1);
-    }
-    75% {
-        box-shadow: 
-            0 10px 30px rgba(0, 0, 0, 0.2),
-            0 0 0 1px rgba(255, 255, 255, 0.1) inset,
-            0 -5px 20px rgba(0, 0, 0, 0.1) inset,
-            5px 0 20px rgba(0, 200, 255, 0.08),
-            -5px 0 20px rgba(255, 100, 0, 0.08);
-    }
-    100% {
-        box-shadow: 
-            0 10px 30px rgba(0, 0, 0, 0.2),
-            0 0 0 1px rgba(255, 255, 255, 0.1) inset,
-            0 -5px 20px rgba(0, 0, 0, 0.1) inset,
-            5px 0 20px rgba(0, 0, 255, 0.05),
-            -5px 0 20px rgba(255, 0, 0, 0.05);
-    }
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; transform: perspective(500px) rotateX(5deg) translateY(20px); }
-    to { opacity: 1; transform: perspective(500px) rotateX(0) translateY(0); }
-}
-
-/* Hover effect for extra interactivity */
-.login-box:hover {
-    transform: perspective(500px) rotateX(1deg) rotateY(1deg) translateY(-5px);
-    box-shadow: 
-        0 15px 40px rgba(0, 0, 0, 0.3),
-        0 0 0 1px rgba(255, 255, 255, 0.2) inset,
-        0 -8px 25px rgba(0, 0, 0, 0.15) inset,
-        8px 0 25px rgba(0, 0, 255, 0.1),
-        -8px 0 25px rgba(255, 0, 0, 0.1);
-    transition: all 0.3s ease;
-}
-    
-    @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(20px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
+login-box {
+        background: rgba(255, 255, 255, 0.95);
+        padding: 2.5rem;
+        border-radius: 1rem;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        width: 100%;
+        max-width: 450px;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        animation: famdeIn 0.6s ease-out;
+        }
     
     .login-title {
         color: var(--primary);
