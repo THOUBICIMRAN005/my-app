@@ -703,6 +703,9 @@ def hybrid_quantum_optimization(system_config, task_config):
 # --------------------------
 # Application Database
 # --------------------------
+# --------------------------
+# Application Database
+# --------------------------
 APP_DATABASE = {
     "Microsoft Office": {
         "Word": r"C:\Program Files\Microsoft Office\root\Office16\WINWORD.EXE",
@@ -727,6 +730,15 @@ APP_DATABASE = {
 # App Launcher Functions
 # --------------------------
 def app_launcher_page():
+    import streamlit as st
+    import time
+    import os
+    import platform
+    
+    # Detect environment
+    is_local = os.environ.get('STREAMLIT_SERVER_PORT') is not None
+    running_os = platform.system()
+    
     MAX_CONCURRENT_TASKS = 8  # Maximum allowed running apps
     
     # Initialize session state
@@ -734,29 +746,43 @@ def app_launcher_page():
         st.session_state.running_tasks = []
     
     def launch_application(app_name: str, app_path: str) -> bool:
-        """Launch an application with task limit enforcement"""
+        """Launch or simulate launching an application"""
         if len(st.session_state.running_tasks) >= MAX_CONCURRENT_TASKS:
             st.warning(f"Cannot launch {app_name}. Maximum {MAX_CONCURRENT_TASKS} concurrent apps allowed.")
             return False
         
-        try:
-            if os.path.exists(app_path):
-                # Use start command for better Windows integration
-                subprocess.Popen(f'start "" "{app_path}"', shell=True)
-                st.session_state.running_tasks.append({
-                    "name": app_name,
-                    "path": app_path,
-                    "start_time": time.time(),
-                    "pid": None  # Would use psutil for proper PID tracking
-                })
-                st.success(f"Launched {app_name} successfully!")
-                return True
-            else:
-                st.error(f"Application not found at: {app_path}")
+        # In cloud mode, we just simulate launching the app
+        if not is_local or running_os != "Windows":
+            st.session_state.running_tasks.append({
+                "name": app_name,
+                "path": app_path,
+                "start_time": time.time(),
+                "simulated": True
+            })
+            st.success(f"Simulated launch of {app_name} (demo mode)")
+            return True
+            
+        # On Windows local development, we can actually try to launch the app
+        else:
+            try:
+                import subprocess
+                if os.path.exists(app_path):
+                    # Use start command for better Windows integration
+                    subprocess.Popen(f'start "" "{app_path}"', shell=True)
+                    st.session_state.running_tasks.append({
+                        "name": app_name,
+                        "path": app_path,
+                        "start_time": time.time(),
+                        "simulated": False
+                    })
+                    st.success(f"Launched {app_name} successfully!")
+                    return True
+                else:
+                    st.error(f"Application not found at: {app_path}")
+                    return False
+            except Exception as e:
+                st.error(f"Failed to launch {app_name}: {str(e)}")
                 return False
-        except Exception as e:
-            st.error(f"Failed to launch {app_name}: {str(e)}")
-            return False
     
     def launch_all_applications():
         """Launch all applications respecting task limits"""
@@ -794,13 +820,20 @@ def app_launcher_page():
         
         for i in range(total_tasks, 0, -1):  # Close in reverse order
             task = st.session_state.running_tasks.pop()
-            try:
-                os.system(f'taskkill /f /im "{os.path.basename(task["path"])}"')
+            
+            # For simulated apps, we just remove them from the list
+            if task.get("simulated", True):
                 status_text.info(f"Closing {task['name']}...")
-                progress_bar.progress((total_tasks - i + 1) / total_tasks)
-                time.sleep(0.3)  # Small delay between closures
-            except Exception as e:
-                st.error(f"Error closing {task['name']}: {str(e)}")
+            else:
+                # Try to actually close the app on Windows local dev
+                try:
+                    os.system(f'taskkill /f /im "{os.path.basename(task["path"])}"')
+                    status_text.info(f"Closing {task['name']}...")
+                except Exception as e:
+                    st.error(f"Error closing {task['name']}: {str(e)}")
+                    
+            progress_bar.progress((total_tasks - i + 1) / total_tasks)
+            time.sleep(0.3)  # Small delay between closures
         
         status_text.success("All applications closed successfully!")
         progress_bar.empty()
@@ -811,14 +844,23 @@ def app_launcher_page():
         """Attempt to close a running application"""
         try:
             task = st.session_state.running_tasks.pop(index)
-            # This is a simplified approach - would use task['pid'] with psutil in production
-            os.system(f'taskkill /f /im "{os.path.basename(task["path"])}"')
+            
+            # For actual apps on Windows local dev, try to close them
+            if not task.get("simulated", True) and running_os == "Windows":
+                os.system(f'taskkill /f /im "{os.path.basename(task["path"])}"')
+                
             st.success(f"Closed {task['name']}")
         except Exception as e:
             st.error(f"Error closing application: {str(e)}")
     
     # App launcher page UI
     st.title("📱 Application Launcher")
+    
+    # Show environment information
+    if not is_local or running_os != "Windows":
+        st.info("🔔 Running in demo mode: Applications will be simulated rather than actually launched.")
+        st.warning("⚠️ Note: This launcher can only actually launch applications when running locally on Windows.")
+    
     st.write(f"Maximum concurrent apps allowed: {MAX_CONCURRENT_TASKS}")
     
     # Control buttons
@@ -839,16 +881,43 @@ def app_launcher_page():
             st.info("No applications currently running")
         else:
             for i, task in enumerate(st.session_state.running_tasks):
-                col1, col2 = st.columns([4, 1])
+                col1, col2, col3 = st.columns([3, 1, 1])
                 with col1:
                     st.write(f"**{task['name']}** (running for {int(time.time() - task['start_time'])}s)")
                 with col2:
+                    if task.get("simulated", True):
+                        st.caption("Demo mode")
+                with col3:
                     if st.button("Close", key=f"close_{i}"):
                         close_application(i)
                         st.rerun()
     
     # App selection interface
     st.header("Launch New Applications")
+    
+    # Add custom URL launcher in cloud mode
+    if not is_local or running_os != "Windows":
+        st.subheader("Launch Website")
+        cols = st.columns([3, 1])
+        with cols[0]:
+            website_url = st.text_input("Enter website URL", "https://")
+        with cols[1]:
+            if st.button("Open Website"):
+                if website_url.startswith(("http://", "https://")):
+                    # Use Streamlit's built-in way to open URLs
+                    st.markdown(f'<a href="{website_url}" target="_blank">Click here to open {website_url}</a>', unsafe_allow_html=True)
+                    # Also add to running tasks for consistency
+                    st.session_state.running_tasks.append({
+                        "name": f"Website: {website_url}",
+                        "path": website_url,
+                        "start_time": time.time(),
+                        "simulated": True
+                    })
+                    st.success(f"Opened {website_url}")
+                else:
+                    st.error("Please enter a valid URL starting with http:// or https://")
+    
+    # Original app categories
     for category, apps in APP_DATABASE.items():
         with st.expander(f"📁 {category}"):
             cols = st.columns(3)
@@ -857,7 +926,6 @@ def app_launcher_page():
                     if st.button(f"🚀 {app_name}", key=f"launch_{app_name}"):
                         launch_application(app_name, app_path)
                         st.rerun()
-
 # --------------------------
 # Web Page Database
 # --------------------------
