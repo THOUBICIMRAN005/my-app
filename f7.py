@@ -709,144 +709,153 @@ def hybrid_quantum_optimization(system_config, task_config):
  # --------------------------
 # App Launcher Functions
 # --------------------------
+# --------------------------
+# Cloud-Compatible App Launcher
+# --------------------------
 def app_launcher_page():
     import streamlit as st
     import time
-    import webbrowser
     from urllib.parse import urlparse
     
-    # Cloud-safe App Database (using web versions)
-    APP_DATABASE = {
-        "Web Browsers": {
-            "Google Chrome": "https://www.google.com",
-            "Mozilla Firefox": "https://www.mozilla.org",
-            "Microsoft Edge": "https://www.microsoft.com/edge"
+    # Web Application Database
+    WEB_APP_DATABASE = {
+        "🌐 Browsers": {
+            "Chrome": "https://www.google.com/chrome/",
+            "Firefox": "https://www.mozilla.org/firefox/",
+            "Edge": "https://www.microsoft.com/edge"
         },
-        "Productivity": {
+        "📝 Productivity": {
             "Google Docs": "https://docs.google.com",
-            "Google Sheets": "https://sheets.google.com",
-            "Google Slides": "https://slides.google.com"
+            "Notion": "https://www.notion.so",
+            "Trello": "https://trello.com"
         },
-        "Development": {
+        "💻 Development": {
             "GitHub": "https://github.com",
             "Replit": "https://replit.com",
-            "Stack Overflow": "https://stackoverflow.com"
+            "VS Code Online": "https://vscode.dev"
         },
-        "Social Media": {
+        "📱 Social": {
             "Twitter": "https://twitter.com",
             "LinkedIn": "https://linkedin.com",
             "Reddit": "https://reddit.com"
         }
     }
 
-    MAX_CONCURRENT_TASKS = 8
+    # Initialize session state
+    if 'open_apps' not in st.session_state:
+        st.session_state.open_apps = {}
     
-    if 'running_tasks' not in st.session_state:
-        st.session_state.running_tasks = []
+    def launch_app(app_name, app_url):
+        """Launch web application with proper tracking"""
+        if app_name in st.session_state.open_apps:
+            st.warning(f"{app_name} is already open!")
+            return
+        
+        # Store launch time
+        st.session_state.open_apps[app_name] = {
+            "url": app_url,
+            "launch_time": time.time()
+        }
+        
+        # Create and display the launch button
+        button_key = f"launch_{app_name}_{time.time()}"
+        if st.button(
+            f"Open {app_name}", 
+            key=button_key,
+            help=f"Click to open {app_name}",
+            use_container_width=True
+        ):
+            # This will refresh and show the "already open" message
+            pass
+        
+        # Auto-open the URL (works in Streamlit Cloud)
+        st.markdown(f"""
+        <a href="{app_url}" target="_blank" id="{app_name}_link"></a>
+        <script>
+            document.getElementById('{app_name}_link').click();
+        </script>
+        """, unsafe_allow_html=True)
+        
+        st.toast(f"Opening {app_name}...", icon="🚀")
 
-    def is_valid_url(url):
-        try:
-            result = urlparse(url)
-            return all([result.scheme, result.netloc])
-        except ValueError:
-            return False
-
-    def launch_application(app_name: str, app_url: str) -> bool:
-        """Launch web applications in cloud environment"""
-        if len(st.session_state.running_tasks) >= MAX_CONCURRENT_TASKS:
-            st.warning(f"Cannot launch {app_name}. Maximum {MAX_CONCURRENT_TASKS} concurrent apps allowed.")
-            return False
-            
-        if not is_valid_url(app_url):
-            st.error(f"Invalid URL for {app_name}")
-            return False
-            
-        try:
-            # Create clickable link that opens in new tab
-            st.markdown(f"""
-            <a href="{app_url}" target="_blank" style="text-decoration: none;">
-                <div style="
-                    padding: 0.5rem 1rem;
-                    background-color: #6e48aa;
-                    color: white;
-                    border-radius: 0.5rem;
-                    text-align: center;
-                    margin: 0.5rem 0;
-                ">
-                    Click here if {app_name} doesn't open automatically
-                </div>
-            </a>
-            """, unsafe_allow_html=True)
-            
-            # Auto-open in new tab using JavaScript
-            st.markdown(f"""
-            <script>
-                window.open("{app_url}", "_blank");
-            </script>
-            """, unsafe_allow_html=True)
-            
-            st.session_state.running_tasks.append({
-                "name": app_name,
-                "url": app_url,
-                "start_time": time.time()
-            })
-            
-            st.success(f"Opened {app_name} in a new tab!")
-            return True
-            
-        except Exception as e:
-            st.error(f"Failed to launch {app_name}: {str(e)}")
-            return False
-
-    def close_application(index: int):
+    def close_app(app_name):
         """Remove app from tracking"""
-        try:
-            removed = st.session_state.running_tasks.pop(index)
-            st.success(f"Closed {removed['name']}")
-        except Exception as e:
-            st.error(f"Error closing application: {str(e)}")
+        if app_name in st.session_state.open_apps:
+            del st.session_state.open_apps[app_name]
+            st.toast(f"Closed {app_name}", icon="✅")
+        else:
+            st.warning(f"{app_name} wasn't open")
 
-    # --- UI Components ---
-    st.title("🌐 Web App Launcher")
-    st.write("Launch web applications directly from this dashboard")
+    # --- Main UI ---
+    st.title("🌍 Web App Launcher")
+    st.caption("Launch web applications directly in new tabs")
     
-    # Running Apps Panel
-    with st.expander("📱 Currently Running Apps", expanded=True):
-        if not st.session_state.running_tasks:
+    # Current Apps Dashboard
+    with st.expander("📱 Currently Open Apps", expanded=True):
+        if not st.session_state.open_apps:
             st.info("No applications currently running")
         else:
-            for i, task in enumerate(st.session_state.running_tasks):
-                cols = st.columns([4, 1])
+            for app_name, details in st.session_state.open_apps.items():
+                cols = st.columns([3, 1])
                 with cols[0]:
-                    st.write(f"**{task['name']}** - open for {int(time.time() - task['start_time'])}s")
-                    st.caption(task['url'])
+                    st.markdown(f"""
+                    **{app_name}**  
+                    <small>Open for {int(time.time() - details['launch_time'])} seconds</small>  
+                    <small>{details['url']}</small>
+                    """, unsafe_allow_html=True)
                 with cols[1]:
-                    if st.button("Close", key=f"close_{i}"):
-                        close_application(i)
+                    if st.button("Close", key=f"close_{app_name}"):
+                        close_app(app_name)
                         st.rerun()
 
-    # App Categories
+    # App Launcher Grid
     st.header("Available Applications")
     
-    for category, apps in APP_DATABASE.items():
-        with st.expander(f"📂 {category}"):
+    for category, apps in WEB_APP_DATABASE.items():
+        with st.expander(category):
             cols = st.columns(3)
             for i, (app_name, app_url) in enumerate(apps.items()):
                 with cols[i % 3]:
-                    if st.button(f"🚀 {app_name}", key=f"launch_{app_name}"):
-                        launch_application(app_name, app_url)
-                        st.rerun()
+                    # Show different button if app is already open
+                    if app_name in st.session_state.open_apps:
+                        st.button(
+                            f"✓ {app_name} (Open)",
+                            disabled=True,
+                            help="Already running",
+                            use_container_width=True
+                        )
+                    else:
+                        if st.button(
+                            f"🚀 {app_name}",
+                            key=f"btn_{app_name}",
+                            use_container_width=True
+                        ):
+                            launch_app(app_name, app_url)
+                            st.rerun()
 
     # Custom URL Launcher
     st.header("Launch Custom Website")
-    custom_url = st.text_input("Enter website URL (include https://)", "")
+    custom_url = st.text_input("Enter full website URL (must include https://):", "")
     if st.button("Launch Custom URL"):
-        if custom_url and is_valid_url(custom_url):
-            launch_application("Custom Website", custom_url)
+        if custom_url and custom_url.startswith(('http://', 'https://')):
+            launch_app("Custom Website", custom_url)
             st.rerun()
         else:
-            st.error("Please enter a valid URL starting with https://")
-#--------------------------
+            st.error("Please enter a valid URL starting with http:// or https://")
+
+    # Help Section
+    with st.expander("ℹ️ Help"):
+        st.markdown("""
+        **How this works:**
+        - Click any app button to open it in a new tab
+        - The app will be tracked in "Currently Open Apps"
+        - Use "Close" to remove from tracking (won't close actual tab)
+        
+        **Note:** Some browsers may block popups. If an app doesn't open:
+        1. Look for a popup blocker icon in your browser's address bar
+        2. Allow popups for this site
+        3. Click the app button again
+        """)#--------------------------
 # Web Page Database
 # --------------------------
 WEB_DATABASE = {
