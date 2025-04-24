@@ -706,247 +706,147 @@ def hybrid_quantum_optimization(system_config, task_config):
 # --------------------------
 # Application Database
 # --------------------------
- APP_DATABASE = {
+ # --------------------------
+# App Launcher Functions
+# --------------------------
+def app_launcher_page():
+    import streamlit as st
+    import time
+    import webbrowser
+    from urllib.parse import urlparse
+    
+    # Cloud-safe App Database (using web versions)
+    APP_DATABASE = {
         "Web Browsers": {
-            "Chrome": "https://www.google.com/chrome/",
-            "Firefox": "https://www.mozilla.org/firefox/",
-            "Edge": "https://www.microsoft.com/edge"
+            "Google Chrome": "https://www.google.com",
+            "Mozilla Firefox": "https://www.mozilla.org",
+            "Microsoft Edge": "https://www.microsoft.com/edge"
         },
         "Productivity": {
             "Google Docs": "https://docs.google.com",
-            "Notion": "https://www.notion.so",
-            "Trello": "https://trello.com"
+            "Google Sheets": "https://sheets.google.com",
+            "Google Slides": "https://slides.google.com"
         },
         "Development": {
             "GitHub": "https://github.com",
             "Replit": "https://replit.com",
-            "VS Code Online": "https://vscode.dev"
+            "Stack Overflow": "https://stackoverflow.com"
+        },
+        "Social Media": {
+            "Twitter": "https://twitter.com",
+            "LinkedIn": "https://linkedin.com",
+            "Reddit": "https://reddit.com"
         }
     }
+
+    MAX_CONCURRENT_TASKS = 8
     
-# --------------------------
-# App Launcher Functions
-# --------------------------
-def app_launcher_page():
- # Detect environment
-    is_local = not st.runtime.exists()
-    running_os = platform.system()
-    
-    MAX_CONCURRENT_TASKS = 8  # Maximum allowed running apps
-    
-    # Initialize session state
     if 'running_tasks' not in st.session_state:
         st.session_state.running_tasks = []
-    
+
     def is_valid_url(url):
         try:
             result = urlparse(url)
             return all([result.scheme, result.netloc])
         except ValueError:
             return False
-    
-    def launch_application(app_name: str, app_path: str) -> bool:
-        """Universal application/website launcher"""
+
+    def launch_application(app_name: str, app_url: str) -> bool:
+        """Launch web applications in cloud environment"""
         if len(st.session_state.running_tasks) >= MAX_CONCURRENT_TASKS:
             st.warning(f"Cannot launch {app_name}. Maximum {MAX_CONCURRENT_TASKS} concurrent apps allowed.")
             return False
-        
-        # For web URLs - works everywhere
-        if is_valid_url(app_path):
-            try:
-                st.markdown(f'<a href="{app_path}" target="_blank">Opening {app_name}...</a>', unsafe_allow_html=True)
-                st.session_state.running_tasks.append({
-                    "name": app_name,
-                    "path": app_path,
-                    "start_time": time.time(),
-                    "type": "website"
-                })
-                return True
-            except Exception as e:
-                st.error(f"Failed to open {app_name}: {str(e)}")
-                return False
-        
-        # For local apps - only works in local environment
-        elif is_local:
-            try:
-                if running_os == "Windows":
-                    os.startfile(app_path)
-                elif running_os == "Darwin":  # Mac
-                    os.system(f'open "{app_path}"')
-                else:  # Linux
-                    os.system(f'xdg-open "{app_path}"')
-                
-                st.session_state.running_tasks.append({
-                    "name": app_name,
-                    "path": app_path,
-                    "start_time": time.time(),
-                    "type": "local_app"
-                })
-                st.success(f"Launched {app_name} successfully!")
-                return True
-            except Exception as e:
-                st.error(f"Failed to launch {app_name}: {str(e)}")
-                return False
-        
-        # In cloud environment for non-URLs
-        else:
+            
+        if not is_valid_url(app_url):
+            st.error(f"Invalid URL for {app_name}")
+            return False
+            
+        try:
+            # Create clickable link that opens in new tab
+            st.markdown(f"""
+            <a href="{app_url}" target="_blank" style="text-decoration: none;">
+                <div style="
+                    padding: 0.5rem 1rem;
+                    background-color: #6e48aa;
+                    color: white;
+                    border-radius: 0.5rem;
+                    text-align: center;
+                    margin: 0.5rem 0;
+                ">
+                    Click here if {app_name} doesn't open automatically
+                </div>
+            </a>
+            """, unsafe_allow_html=True)
+            
+            # Auto-open in new tab using JavaScript
+            st.markdown(f"""
+            <script>
+                window.open("{app_url}", "_blank");
+            </script>
+            """, unsafe_allow_html=True)
+            
             st.session_state.running_tasks.append({
                 "name": app_name,
-                "path": app_path,
-                "start_time": time.time(),
-                "type": "simulated"
+                "url": app_url,
+                "start_time": time.time()
             })
-            st.success(f"Demo: {app_name} would launch here")
+            
+            st.success(f"Opened {app_name} in a new tab!")
             return True
-    
-    
-    def launch_all_applications():
-        """Launch all applications respecting task limits"""
-        successful_launches = 0
-        total_apps = sum(len(apps) for apps in APP_DATABASE.values())
-        
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        
-        for category, apps in APP_DATABASE.items():
-            for app_name, app_path in apps.items():
-                if len(st.session_state.running_tasks) >= MAX_CONCURRENT_TASKS:
-                    status_text.warning(f"Stopped: Reached maximum of {MAX_CONCURRENT_TASKS} concurrent apps")
-                    break
-                
-                status_text.info(f"Launching {app_name}...")
-                if launch_application(app_name, app_path):
-                    successful_launches += 1
-                
-                progress_bar.progress(successful_launches / total_apps)
-                time.sleep(0.5)  # Small delay between launches
-        
-        status_text.success(f"Launched {successful_launches} of {total_apps} applications")
-        progress_bar.empty()
-    
-    def close_all_applications():
-        """Close all running applications"""
-        if not st.session_state.running_tasks:
-            st.warning("No applications are currently running")
-            return
-        
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        total_tasks = len(st.session_state.running_tasks)
-        
-        for i in range(total_tasks, 0, -1):  # Close in reverse order
-            task = st.session_state.running_tasks.pop()
             
-            # For simulated apps, we just remove them from the list
-            if task.get("simulated", True):
-                status_text.info(f"Closing {task['name']}...")
-            else:
-                # Try to actually close the app on Windows local dev
-                try:
-                    os.system(f'taskkill /f /im "{os.path.basename(task["path"])}"')
-                    status_text.info(f"Closing {task['name']}...")
-                except Exception as e:
-                    st.error(f"Error closing {task['name']}: {str(e)}")
-                    
-            progress_bar.progress((total_tasks - i + 1) / total_tasks)
-            time.sleep(0.3)  # Small delay between closures
-        
-        status_text.success("All applications closed successfully!")
-        progress_bar.empty()
-        time.sleep(2)
-        status_text.empty()
-    
+        except Exception as e:
+            st.error(f"Failed to launch {app_name}: {str(e)}")
+            return False
+
     def close_application(index: int):
-        """Attempt to close a running application"""
+        """Remove app from tracking"""
         try:
-            task = st.session_state.running_tasks.pop(index)
-            
-            # For actual apps on Windows local dev, try to close them
-            if not task.get("simulated", True) and running_os == "Windows":
-                os.system(f'taskkill /f /im "{os.path.basename(task["path"])}"')
-                
-            st.success(f"Closed {task['name']}")
+            removed = st.session_state.running_tasks.pop(index)
+            st.success(f"Closed {removed['name']}")
         except Exception as e:
             st.error(f"Error closing application: {str(e)}")
+
+    # --- UI Components ---
+    st.title("🌐 Web App Launcher")
+    st.write("Launch web applications directly from this dashboard")
     
-    # App launcher page UI
-    st.title("📱 Application Launcher")
-    
-    # Show environment information
-    if not is_local or running_os != "Windows":
-        st.info("🔔 Running in demo mode: Applications will be simulated rather than actually launched.")
-        st.warning("⚠️ Note: This launcher can only actually launch applications when running locally on Windows.")
-    
-    st.write(f"Maximum concurrent apps allowed: {MAX_CONCURRENT_TASKS}")
-    if not is_local:
-        st.warning("""
-        ℹ️ Cloud Mode: Only web applications can be launched directly. 
-        Local apps will be simulated. For full functionality, run locally.
-        """)
-    # Control buttons
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("🚀 Launch All Apps", help="Launch all applications up to the task limit"):
-            launch_all_applications()
-            st.rerun()
-    
-    with col2:
-        if st.button("🛑 Close All Apps", help="Close all currently running applications"):
-            close_all_applications()
-            st.rerun()
-    
-    # Display running tasks
-    with st.expander("🚀 Currently Running Apps", expanded=True):
+    # Running Apps Panel
+    with st.expander("📱 Currently Running Apps", expanded=True):
         if not st.session_state.running_tasks:
             st.info("No applications currently running")
         else:
             for i, task in enumerate(st.session_state.running_tasks):
-                col1, col2, col3 = st.columns([3, 1, 1])
-                with col1:
-                    st.write(f"**{task['name']}** (running for {int(time.time() - task['start_time'])}s)")
-                with col2:
-                    if task.get("simulated", True):
-                        st.caption("Demo mode")
-                with col3:
+                cols = st.columns([4, 1])
+                with cols[0]:
+                    st.write(f"**{task['name']}** - open for {int(time.time() - task['start_time'])}s")
+                    st.caption(task['url'])
+                with cols[1]:
                     if st.button("Close", key=f"close_{i}"):
                         close_application(i)
                         st.rerun()
+
+    # App Categories
+    st.header("Available Applications")
     
-    # App selection interface
-    st.header("Launch New Applications")
-    
-    # Add custom URL launcher in cloud mode
-    if not is_local or running_os != "Windows":
-        st.subheader("Launch Website")
-        cols = st.columns([3, 1])
-        with cols[0]:
-            website_url = st.text_input("Enter website URL", "https://")
-        with cols[1]:
-            if st.button("Open Website"):
-                if website_url.startswith(("http://", "https://")):
-                    # Use Streamlit's built-in way to open URLs
-                    st.markdown(f'<a href="{website_url}" target="_blank">Click here to open {website_url}</a>', unsafe_allow_html=True)
-                    # Also add to running tasks for consistency
-                    st.session_state.running_tasks.append({
-                        "name": f"Website: {website_url}",
-                        "path": website_url,
-                        "start_time": time.time(),
-                        "simulated": True
-                    })
-                    st.success(f"Opened {website_url}")
-                else:
-                    st.error("Please enter a valid URL starting with http:// or https://")
-    
-    # Original app categories
     for category, apps in APP_DATABASE.items():
-        with st.expander(f"📁 {category}"):
+        with st.expander(f"📂 {category}"):
             cols = st.columns(3)
-            for i, (app_name, app_path) in enumerate(apps.items()):
+            for i, (app_name, app_url) in enumerate(apps.items()):
                 with cols[i % 3]:
                     if st.button(f"🚀 {app_name}", key=f"launch_{app_name}"):
-                        launch_application(app_name, app_path)
+                        launch_application(app_name, app_url)
                         st.rerun()
-# --------------------------
+
+    # Custom URL Launcher
+    st.header("Launch Custom Website")
+    custom_url = st.text_input("Enter website URL (include https://)", "")
+    if st.button("Launch Custom URL"):
+        if custom_url and is_valid_url(custom_url):
+            launch_application("Custom Website", custom_url)
+            st.rerun()
+        else:
+            st.error("Please enter a valid URL starting with https://")
+#--------------------------
 # Web Page Database
 # --------------------------
 WEB_DATABASE = {
