@@ -17,9 +17,6 @@ import subprocess
 import webbrowser
 from enum import Enum
 from typing import Dict
-import platform
-import webbrowser
-from urllib.parse import urlparse
 
 
 # --------------------------
@@ -706,156 +703,162 @@ def hybrid_quantum_optimization(system_config, task_config):
 # --------------------------
 # Application Database
 # --------------------------
- # --------------------------
+APP_DATABASE = {
+    "Microsoft Office": {
+        "Word": r"C:\Program Files\Microsoft Office\root\Office16\WINWORD.EXE",
+        "Excel": r"C:\Program Files\Microsoft Office\root\Office16\EXCEL.EXE",
+        "PowerPoint": r"C:\Program Files\Microsoft Office\root\Office16\POWERPNT.EXE",
+        "Outlook": r"C:\Program Files\Microsoft Office\root\Office16\OUTLOOK.EXE"
+    },
+    "Browsers": {
+        "Edge": r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        "Firefox": r"C:\Program Files\Mozilla Firefox\firefox.exe"
+    },
+    "Utilities": {
+        "Notepad": r"C:\Windows\System32\notepad.exe",
+        "Calculator": r"C:\Windows\System32\calc.exe",
+        "Paint": r"C:\Windows\System32\mspaint.exe",
+        "Command Prompt": r"C:\Windows\System32\cmd.exe",
+        "File Explorer": "explorer.exe"
+    }
+}
+
+# --------------------------
 # App Launcher Functions
 # --------------------------
-# --------------------------
-# Cloud-Compatible App Launcher
-# --------------------------
 def app_launcher_page():
-    import streamlit as st
-    import time
-    from urllib.parse import urlparse
+    MAX_CONCURRENT_TASKS = 8  # Maximum allowed running apps
     
-    # Web Application Database
-    WEB_APP_DATABASE = {
-        "🌐 Browsers": {
-            "Chrome": "https://www.google.com/chrome/",
-            "Firefox": "https://www.mozilla.org/firefox/",
-            "Edge": "https://www.microsoft.com/edge"
-        },
-        "📝 Productivity": {
-            "Google Docs": "https://docs.google.com",
-            "Notion": "https://www.notion.so",
-            "Trello": "https://trello.com"
-        },
-        "💻 Development": {
-            "GitHub": "https://github.com",
-            "Replit": "https://replit.com",
-            "VS Code Online": "https://vscode.dev"
-        },
-        "📱 Social": {
-            "Twitter": "https://twitter.com",
-            "LinkedIn": "https://linkedin.com",
-            "Reddit": "https://reddit.com"
-        }
-    }
-
     # Initialize session state
-    if 'open_apps' not in st.session_state:
-        st.session_state.open_apps = {}
+    if 'running_tasks' not in st.session_state:
+        st.session_state.running_tasks = []
     
-    def launch_app(app_name, app_url):
-        """Launch web application with proper tracking"""
-        if app_name in st.session_state.open_apps:
-            st.warning(f"{app_name} is already open!")
+    def launch_application(app_name: str, app_path: str) -> bool:
+        """Launch an application with task limit enforcement"""
+        if len(st.session_state.running_tasks) >= MAX_CONCURRENT_TASKS:
+            st.warning(f"Cannot launch {app_name}. Maximum {MAX_CONCURRENT_TASKS} concurrent apps allowed.")
+            return False
+        
+        try:
+            if os.path.exists(app_path):
+                # Use start command for better Windows integration
+                subprocess.Popen(f'start "" "{app_path}"', shell=True)
+                st.session_state.running_tasks.append({
+                    "name": app_name,
+                    "path": app_path,
+                    "start_time": time.time(),
+                    "pid": None  # Would use psutil for proper PID tracking
+                })
+                st.success(f"Launched {app_name} successfully!")
+                return True
+            else:
+                st.error(f"Application not found at: {app_path}")
+                return False
+        except Exception as e:
+            st.error(f"Failed to launch {app_name}: {str(e)}")
+            return False
+    
+    def launch_all_applications():
+        """Launch all applications respecting task limits"""
+        successful_launches = 0
+        total_apps = sum(len(apps) for apps in APP_DATABASE.values())
+        
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        for category, apps in APP_DATABASE.items():
+            for app_name, app_path in apps.items():
+                if len(st.session_state.running_tasks) >= MAX_CONCURRENT_TASKS:
+                    status_text.warning(f"Stopped: Reached maximum of {MAX_CONCURRENT_TASKS} concurrent apps")
+                    break
+                
+                status_text.info(f"Launching {app_name}...")
+                if launch_application(app_name, app_path):
+                    successful_launches += 1
+                
+                progress_bar.progress(successful_launches / total_apps)
+                time.sleep(0.5)  # Small delay between launches
+        
+        status_text.success(f"Launched {successful_launches} of {total_apps} applications")
+        progress_bar.empty()
+    
+    def close_all_applications():
+        """Close all running applications"""
+        if not st.session_state.running_tasks:
+            st.warning("No applications are currently running")
             return
         
-        # Store launch time
-        st.session_state.open_apps[app_name] = {
-            "url": app_url,
-            "launch_time": time.time()
-        }
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        total_tasks = len(st.session_state.running_tasks)
         
-        # Create and display the launch button
-        button_key = f"launch_{app_name}_{time.time()}"
-        if st.button(
-            f"Open {app_name}", 
-            key=button_key,
-            help=f"Click to open {app_name}",
-            use_container_width=True
-        ):
-            # This will refresh and show the "already open" message
-            pass
+        for i in range(total_tasks, 0, -1):  # Close in reverse order
+            task = st.session_state.running_tasks.pop()
+            try:
+                os.system(f'taskkill /f /im "{os.path.basename(task["path"])}"')
+                status_text.info(f"Closing {task['name']}...")
+                progress_bar.progress((total_tasks - i + 1) / total_tasks)
+                time.sleep(0.3)  # Small delay between closures
+            except Exception as e:
+                st.error(f"Error closing {task['name']}: {str(e)}")
         
-        # Auto-open the URL (works in Streamlit Cloud)
-        st.markdown(f"""
-        <a href="{app_url}" target="_blank" id="{app_name}_link"></a>
-        <script>
-            document.getElementById('{app_name}_link').click();
-        </script>
-        """, unsafe_allow_html=True)
-        
-        st.toast(f"Opening {app_name}...", icon="🚀")
-
-    def close_app(app_name):
-        """Remove app from tracking"""
-        if app_name in st.session_state.open_apps:
-            del st.session_state.open_apps[app_name]
-            st.toast(f"Closed {app_name}", icon="✅")
-        else:
-            st.warning(f"{app_name} wasn't open")
-
-    # --- Main UI ---
-    st.title("🌍 Web App Launcher")
-    st.caption("Launch web applications directly in new tabs")
+        status_text.success("All applications closed successfully!")
+        progress_bar.empty()
+        time.sleep(2)
+        status_text.empty()
     
-    # Current Apps Dashboard
-    with st.expander("📱 Currently Open Apps", expanded=True):
-        if not st.session_state.open_apps:
+    def close_application(index: int):
+        """Attempt to close a running application"""
+        try:
+            task = st.session_state.running_tasks.pop(index)
+            # This is a simplified approach - would use task['pid'] with psutil in production
+            os.system(f'taskkill /f /im "{os.path.basename(task["path"])}"')
+            st.success(f"Closed {task['name']}")
+        except Exception as e:
+            st.error(f"Error closing application: {str(e)}")
+    
+    # App launcher page UI
+    st.title("📱 Application Launcher")
+    st.write(f"Maximum concurrent apps allowed: {MAX_CONCURRENT_TASKS}")
+    
+    # Control buttons
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🚀 Launch All Apps", help="Launch all applications up to the task limit"):
+            launch_all_applications()
+            st.rerun()
+    
+    with col2:
+        if st.button("🛑 Close All Apps", help="Close all currently running applications"):
+            close_all_applications()
+            st.rerun()
+    
+    # Display running tasks
+    with st.expander("🚀 Currently Running Apps", expanded=True):
+        if not st.session_state.running_tasks:
             st.info("No applications currently running")
         else:
-            for app_name, details in st.session_state.open_apps.items():
-                cols = st.columns([3, 1])
-                with cols[0]:
-                    st.markdown(f"""
-                    **{app_name}**  
-                    <small>Open for {int(time.time() - details['launch_time'])} seconds</small>  
-                    <small>{details['url']}</small>
-                    """, unsafe_allow_html=True)
-                with cols[1]:
-                    if st.button("Close", key=f"close_{app_name}"):
-                        close_app(app_name)
+            for i, task in enumerate(st.session_state.running_tasks):
+                col1, col2 = st.columns([4, 1])
+                with col1:
+                    st.write(f"**{task['name']}** (running for {int(time.time() - task['start_time'])}s)")
+                with col2:
+                    if st.button("Close", key=f"close_{i}"):
+                        close_application(i)
+                        st.rerun()
+    
+    # App selection interface
+    st.header("Launch New Applications")
+    for category, apps in APP_DATABASE.items():
+        with st.expander(f"📁 {category}"):
+            cols = st.columns(3)
+            for i, (app_name, app_path) in enumerate(apps.items()):
+                with cols[i % 3]:
+                    if st.button(f"🚀 {app_name}", key=f"launch_{app_name}"):
+                        launch_application(app_name, app_path)
                         st.rerun()
 
-    # App Launcher Grid
-    st.header("Available Applications")
-    
-    for category, apps in WEB_APP_DATABASE.items():
-        with st.expander(category):
-            cols = st.columns(3)
-            for i, (app_name, app_url) in enumerate(apps.items()):
-                with cols[i % 3]:
-                    # Show different button if app is already open
-                    if app_name in st.session_state.open_apps:
-                        st.button(
-                            f"✓ {app_name} (Open)",
-                            disabled=True,
-                            help="Already running",
-                            use_container_width=True
-                        )
-                    else:
-                        if st.button(
-                            f"🚀 {app_name}",
-                            key=f"btn_{app_name}",
-                            use_container_width=True
-                        ):
-                            launch_app(app_name, app_url)
-                            st.rerun()
-
-    # Custom URL Launcher
-    st.header("Launch Custom Website")
-    custom_url = st.text_input("Enter full website URL (must include https://):", "")
-    if st.button("Launch Custom URL"):
-        if custom_url and custom_url.startswith(('http://', 'https://')):
-            launch_app("Custom Website", custom_url)
-            st.rerun()
-        else:
-            st.error("Please enter a valid URL starting with http:// or https://")
-
-    # Help Section
-    with st.expander("ℹ️ Help"):
-        st.markdown("""
-        **How this works:**
-        - Click any app button to open it in a new tab
-        - The app will be tracked in "Currently Open Apps"
-        - Use "Close" to remove from tracking (won't close actual tab)
-        
-        **Note:** Some browsers may block popups. If an app doesn't open:
-        1. Look for a popup blocker icon in your browser's address bar
-        2. Allow popups for this site
-        3. Click the app button again
-        """)#--------------------------
+# --------------------------
 # Web Page Database
 # --------------------------
 WEB_DATABASE = {
