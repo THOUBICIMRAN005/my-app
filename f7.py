@@ -17,6 +17,9 @@ import subprocess
 import webbrowser
 from enum import Enum
 from typing import Dict
+import platform
+import webbrowser
+from urllib.parse import urlparse
 
 
 # --------------------------
@@ -703,37 +706,30 @@ def hybrid_quantum_optimization(system_config, task_config):
 # --------------------------
 # Application Database
 # --------------------------
-APP_DATABASE = {
-    "Microsoft Office": {
-        "Word": r"C:\Program Files\Microsoft Office\root\Office16\WINWORD.EXE",
-        "Excel": r"C:\Program Files\Microsoft Office\root\Office16\EXCEL.EXE",
-        "PowerPoint": r"C:\Program Files\Microsoft Office\root\Office16\POWERPNT.EXE",
-        "Outlook": r"C:\Program Files\Microsoft Office\root\Office16\OUTLOOK.EXE"
-    },
-    "Browsers": {
-        "Edge": r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-        "Firefox": r"C:\Program Files\Mozilla Firefox\firefox.exe"
-    },
-    "Utilities": {
-        "Notepad": r"C:\Windows\System32\notepad.exe",
-        "Calculator": r"C:\Windows\System32\calc.exe",
-        "Paint": r"C:\Windows\System32\mspaint.exe",
-        "Command Prompt": r"C:\Windows\System32\cmd.exe",
-        "File Explorer": "explorer.exe"
+ APP_DATABASE = {
+        "Web Browsers": {
+            "Chrome": "https://www.google.com/chrome/",
+            "Firefox": "https://www.mozilla.org/firefox/",
+            "Edge": "https://www.microsoft.com/edge"
+        },
+        "Productivity": {
+            "Google Docs": "https://docs.google.com",
+            "Notion": "https://www.notion.so",
+            "Trello": "https://trello.com"
+        },
+        "Development": {
+            "GitHub": "https://github.com",
+            "Replit": "https://replit.com",
+            "VS Code Online": "https://vscode.dev"
+        }
     }
-}
-
+    
 # --------------------------
 # App Launcher Functions
 # --------------------------
 def app_launcher_page():
-    import streamlit as st
-    import time
-    import os
-    import platform
-    
-    # Detect environment
-    is_local = os.environ.get('STREAMLIT_SERVER_PORT') is not None
+ # Detect environment
+    is_local = not st.runtime.exists()
     running_os = platform.system()
     
     MAX_CONCURRENT_TASKS = 8  # Maximum allowed running apps
@@ -742,44 +738,67 @@ def app_launcher_page():
     if 'running_tasks' not in st.session_state:
         st.session_state.running_tasks = []
     
+    def is_valid_url(url):
+        try:
+            result = urlparse(url)
+            return all([result.scheme, result.netloc])
+        except ValueError:
+            return False
+    
     def launch_application(app_name: str, app_path: str) -> bool:
-        """Launch or simulate launching an application"""
+        """Universal application/website launcher"""
         if len(st.session_state.running_tasks) >= MAX_CONCURRENT_TASKS:
             st.warning(f"Cannot launch {app_name}. Maximum {MAX_CONCURRENT_TASKS} concurrent apps allowed.")
             return False
         
-        # In cloud mode, we just simulate launching the app
-        if not is_local or running_os != "Windows":
+        # For web URLs - works everywhere
+        if is_valid_url(app_path):
+            try:
+                st.markdown(f'<a href="{app_path}" target="_blank">Opening {app_name}...</a>', unsafe_allow_html=True)
+                st.session_state.running_tasks.append({
+                    "name": app_name,
+                    "path": app_path,
+                    "start_time": time.time(),
+                    "type": "website"
+                })
+                return True
+            except Exception as e:
+                st.error(f"Failed to open {app_name}: {str(e)}")
+                return False
+        
+        # For local apps - only works in local environment
+        elif is_local:
+            try:
+                if running_os == "Windows":
+                    os.startfile(app_path)
+                elif running_os == "Darwin":  # Mac
+                    os.system(f'open "{app_path}"')
+                else:  # Linux
+                    os.system(f'xdg-open "{app_path}"')
+                
+                st.session_state.running_tasks.append({
+                    "name": app_name,
+                    "path": app_path,
+                    "start_time": time.time(),
+                    "type": "local_app"
+                })
+                st.success(f"Launched {app_name} successfully!")
+                return True
+            except Exception as e:
+                st.error(f"Failed to launch {app_name}: {str(e)}")
+                return False
+        
+        # In cloud environment for non-URLs
+        else:
             st.session_state.running_tasks.append({
                 "name": app_name,
                 "path": app_path,
                 "start_time": time.time(),
-                "simulated": True
+                "type": "simulated"
             })
-            st.success(f"Simulated launch of {app_name} (demo mode)")
+            st.success(f"Demo: {app_name} would launch here")
             return True
-            
-        # On Windows local development, we can actually try to launch the app
-        else:
-            try:
-                import subprocess
-                if os.path.exists(app_path):
-                    # Use start command for better Windows integration
-                    subprocess.Popen(f'start "" "{app_path}"', shell=True)
-                    st.session_state.running_tasks.append({
-                        "name": app_name,
-                        "path": app_path,
-                        "start_time": time.time(),
-                        "simulated": False
-                    })
-                    st.success(f"Launched {app_name} successfully!")
-                    return True
-                else:
-                    st.error(f"Application not found at: {app_path}")
-                    return False
-            except Exception as e:
-                st.error(f"Failed to launch {app_name}: {str(e)}")
-                return False
+    
     
     def launch_all_applications():
         """Launch all applications respecting task limits"""
@@ -859,7 +878,11 @@ def app_launcher_page():
         st.warning("⚠️ Note: This launcher can only actually launch applications when running locally on Windows.")
     
     st.write(f"Maximum concurrent apps allowed: {MAX_CONCURRENT_TASKS}")
-    
+    if not is_local:
+        st.warning("""
+        ℹ️ Cloud Mode: Only web applications can be launched directly. 
+        Local apps will be simulated. For full functionality, run locally.
+        """)
     # Control buttons
     col1, col2 = st.columns(2)
     with col1:
