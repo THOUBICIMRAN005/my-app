@@ -17,7 +17,7 @@ import subprocess
 import webbrowser
 from enum import Enum
 from typing import Dict
-
+import platform
 
 # --------------------------
 # Constants and Configuration
@@ -1090,14 +1090,15 @@ def web_launcher_page():
             })
             st.success(f"Added {page_name} to favorites")
     
-    # Web launcher page UI
+   # Web launcher page UI
     st.title("🌐 Web Page Launcher")
     st.write(f"Maximum concurrent tabs allowed: {MAX_CONCURRENT_TABS}")
     
-    # Show environment information
-    if not is_local or running_os != "Windows":
+    # Add cloud compatibility warning - PROPERLY INDENTED
+    if not st.runtime.exists() or platform.system() != "Windows":
         st.info("🔔 Running in demo mode: Web Pages will be simulated rather than actually launched.")
         st.warning("⚠️ Note: This launcher can only actually launch Web Pages when running locally on Windows.")
+
     # Add custom CSS for the webpage cards
     st.markdown("""
     <style>
@@ -1107,8 +1108,7 @@ def web_launcher_page():
         padding: 15px;
         margin-bottom: 15px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-    </style>
+    } </style>
     """, unsafe_allow_html=True)
     
     # Control buttons
