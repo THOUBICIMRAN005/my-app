@@ -1094,6 +1094,10 @@ def web_launcher_page():
     st.title("🌐 Web Page Launcher")
     st.write(f"Maximum concurrent tabs allowed: {MAX_CONCURRENT_TABS}")
     
+    # Show environment information
+    if not is_local or running_os != "Windows":
+        st.info("🔔 Running in demo mode: Web Pages will be simulated rather than actually launched.")
+        st.warning("⚠️ Note: This launcher can only actually launch Web Pages when running locally on Windows.")
     # Add custom CSS for the webpage cards
     st.markdown("""
     <style>
